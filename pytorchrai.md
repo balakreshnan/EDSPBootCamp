@@ -448,6 +448,8 @@ explainer = KernelExplainer(newmodel, np.array(validation_features.float()))
 global_explanation = explainer.explain_global(np.array(validation_features.float()))
 ```
 
+![alt text](https://github.com/balakreshnan/EDSPBootCamp/blob/main/images/explain2.jpg "Logo Title Text 1")
+
 ```
 # Sorted SHAP values
 print('ranked global importance values: {}'.format(global_explanation.get_ranked_global_values()))
@@ -474,6 +476,8 @@ print('global importance rank: {}'.format(global_explanation.get_feature_importa
 ExplanationDashboard(global_explanation, newmodel, dataset=np.array(validation_features.float()), true_y=np.array(validation_labels.float()))
 ```
 
+![alt text](https://github.com/balakreshnan/EDSPBootCamp/blob/main/images/explain1.jpg "Logo Title Text 1")
+
 - Fariness analysis
 
 ```
@@ -490,6 +494,10 @@ FairnessDashboard(sensitive_features=A_test,
                   y_pred=y_pred)
 ```
 
+![alt text](https://github.com/balakreshnan/EDSPBootCamp/blob/main/images/explain3.jpg "Logo Title Text 1")
+
+![alt text](https://github.com/balakreshnan/EDSPBootCamp/blob/main/images/explain4.jpg "Logo Title Text 1")
+
 ```
 features = ['Activity on Company Forums', 'Hired through SMTP','National Origin (code)', 'Negative Review in Past 5 Years', 'Survey, Relative, Attitude toward Peers', "Survey, Relative, Peer's Average Attitude toward Environment","Survey, Relative, Peer's Average Attitude toward Resources", "Survey, Relative, Peer's Average Attitude toward WorkType", "Survey, Relative, Peer's Average Attitude toward Workload", "Survey, Relative, Peer's Average Review of Employee", "University_Americanos College", 'University_Kyrgyz National University', 'University_Rice University', 'University_Smolensk Humanitarian University', 'University_Universitas Negeri Jakarta', 'University_Universitas Pasundan', 'University_University of Commerce Luigi Bocconi']
 ```
@@ -501,5 +509,7 @@ from raiwidgets import ErrorAnalysisDashboard
 
 ErrorAnalysisDashboard(global_explanation, newmodel, dataset=np.array(validation_features.float()), true_y=np.array(validation_labels.float()), features=features)
 ```
+
+![alt text](https://github.com/balakreshnan/EDSPBootCamp/blob/main/images/explain5.jpg "Logo Title Text 1")
 
 - done
