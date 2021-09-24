@@ -316,4 +316,190 @@ probs = torch.sigmoid(y_pred)
 print(probs)
 ```
 
-- More to come
+- Now RAI tooklit implementation
+
+```
+class WrappedPytorchModel(object):
+    """A class for wrapping a PyTorch model in the scikit-learn specification."""
+
+    def __init__(self, model):
+        """Initialize the PytorchModelWrapper with the model and evaluation function."""
+        self._model = model
+        # Set eval automatically for user for batchnorm and dropout layers
+        self._model.eval()
+
+    def predict(self, dataset):
+        """Predict the output using the wrapped PyTorch model.
+        :param dataset: The dataset to predict on.
+        :type dataset: interpret_community.dataset.dataset_wrapper.DatasetWrapper
+        """
+        # Convert the data to pytorch Variable
+        if isinstance(dataset, pd.DataFrame):
+            dataset = dataset.values
+        wrapped_dataset = torch.Tensor(dataset)
+        with torch.no_grad():
+            result = self._model(wrapped_dataset).numpy()
+        # Reshape to 2D if output is 1D and input has one row
+        if len(dataset.shape) == 1:
+            result = result.reshape(1, -1)
+        return result
+
+    def predict_classes(self, dataset):
+        """Predict the class using the wrapped PyTorch model.
+        :param dataset: The dataset to predict on.
+        :type dataset: interpret_community.dataset.dataset_wrapper.DatasetWrapper
+        """
+        # Convert the data to pytorch Variable
+        if isinstance(dataset, pd.DataFrame):
+            dataset = dataset.values
+        wrapped_dataset = torch.Tensor(dataset)
+        with torch.no_grad():
+            result = torch.max(self._model(wrapped_dataset), 1)[0].numpy()
+        # Reshape to 2D if output is 1D and input has one row
+        if len(dataset.shape) == 1:
+            result = result.reshape(1, -1)
+        return result
+
+    def predict_proba(self, dataset):
+        """Predict the output probability using the wrapped PyTorch model.
+        :param dataset: The dataset to predict_proba on.
+        :type dataset: interpret_community.dataset.dataset_wrapper.DatasetWrapper
+        """
+        return self.predict(dataset)
+```
+
+```
+class WrappedClassificationModel(object):
+    """A class for wrapping a classification model."""
+
+    def __init__(self, model, eval_function):
+        """Initialize the WrappedClassificationModel with the model and evaluation function."""
+        self._eval_function = eval_function
+        self._model = model
+
+
+    
+    def predict(self, dataset):
+        probabilities = self._model.predict_classes(dataset).flatten()
+        return [1 if proba > 0.5 else 0 for proba in probabilities]
+#        return self._model.predict_classes(dataset).flatten()
+
+    def predict_proba(self, dataset):
+        """Predict the output probability using the wrapped model.
+        :param dataset: The dataset to predict_proba on.
+        :type dataset: interpret_community.dataset.dataset_wrapper.DatasetWrapper
+        """
+        proba_preds = self._eval_function(dataset)
+        if isinstance(proba_preds, pd.DataFrame):
+            proba_preds = proba_preds.values
+
+        return proba_preds
+```
+
+```
+from interpret_community.common.model_wrapper import _eval_model
+from interpret_community.common.model_wrapper import wrap_model
+from interpret_community.dataset.dataset_wrapper import DatasetWrapper
+eval_function, eval_ml_domain = _eval_model(WrappedPytorchModel(model), DatasetWrapper(validation_features.float()), "classification")
+```
+
+```
+newmodel = WrappedClassificationModel(WrappedPytorchModel(model), eval_function)
+```
+
+- prediction
+
+```
+newmodel.predict(validation_features.float())
+y_pred = newmodel.predict(validation_features.float())
+```
+
+- prediction probabilities
+
+```
+newmodel.predict_proba(validation_features.float())
+```
+
+- test classes
+
+```
+WrappedPytorchModel(model).predict_classes(validation_features.float()).flatten()
+```
+
+- disable dice logs
+
+```
+import logging
+logging.basicConfig()
+logging.getLogger().setLevel(logging.WARN)
+```
+
+- Explaner configuration and run
+
+```
+from interpret.ext.blackbox import KernelExplainer
+```
+
+```
+explainer = KernelExplainer(newmodel, np.array(validation_features.float()))
+```
+
+```
+global_explanation = explainer.explain_global(np.array(validation_features.float()))
+```
+
+```
+# Sorted SHAP values
+print('ranked global importance values: {}'.format(global_explanation.get_ranked_global_values()))
+# Corresponding feature names
+print('ranked global importance names: {}'.format(global_explanation.get_ranked_global_names()))
+# Feature ranks (based on original order of features)
+print('global importance rank: {}'.format(global_explanation.global_importance_rank))
+
+# Note: Do not run this cell if using PFIExplainer, it does not support per class explanations
+# Per class feature names
+print('ranked per class feature names: {}'.format(global_explanation.get_ranked_per_class_names()))
+# Per class feature importance values
+print('ranked per class feature values: {}'.format(global_explanation.get_ranked_per_class_values()))
+```
+
+```
+# Print out a dictionary that holds the sorted feature importance names and values
+print('global importance rank: {}'.format(global_explanation.get_feature_importance_dict()))
+```
+
+- Explanation Dashboard
+
+```
+ExplanationDashboard(global_explanation, newmodel, dataset=np.array(validation_features.float()), true_y=np.array(validation_labels.float()))
+```
+
+- Fariness analysis
+
+```
+A_test = X_test["Survey, Relative, Peer's Average Review of Employee"]
+
+from raiwidgets import FairnessDashboard
+
+# A_test contains your sensitive features (e.g., age, binary gender)
+# y_true contains ground truth labels
+# y_pred contains prediction labels
+
+FairnessDashboard(sensitive_features=A_test,
+                  y_true=np.array(validation_labels.float()).tolist(),
+                  y_pred=y_pred)
+```
+
+```
+features = ['Activity on Company Forums', 'Hired through SMTP','National Origin (code)', 'Negative Review in Past 5 Years', 'Survey, Relative, Attitude toward Peers', "Survey, Relative, Peer's Average Attitude toward Environment","Survey, Relative, Peer's Average Attitude toward Resources", "Survey, Relative, Peer's Average Attitude toward WorkType", "Survey, Relative, Peer's Average Attitude toward Workload", "Survey, Relative, Peer's Average Review of Employee", "University_Americanos College", 'University_Kyrgyz National University', 'University_Rice University', 'University_Smolensk Humanitarian University', 'University_Universitas Negeri Jakarta', 'University_Universitas Pasundan', 'University_University of Commerce Luigi Bocconi']
+```
+
+- Error Analysis
+
+```
+from raiwidgets import ErrorAnalysisDashboard
+
+ErrorAnalysisDashboard(global_explanation, newmodel, dataset=np.array(validation_features.float()), true_y=np.array(validation_labels.float()), features=features)
+```
+
+- done
